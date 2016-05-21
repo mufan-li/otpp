@@ -9,7 +9,6 @@
 
 \usepackage{tikz}
 \usepackage{tkz-graph}
-
 \usepackage{listings}             % Include the listings-package
 \usepackage{algorithm2e}
 \usepackage{dsfont}
@@ -65,6 +64,10 @@
 \parskip 1.5ex
 %\renewcommand{\baselinestretch}{1.25}
 
+\lstset{
+  captionpos=b,   
+}
+
 \begin{document}
 
 \lecture{}{May 22, 2016}{}{Mufan Li}{mufan.li@mail.utoronto.ca}
@@ -76,7 +79,7 @@ the first part of the case study on pricing of
 a convertible bond.
 Please refer to the attached OTPP\_Convertible\_Bond.xlsm file 
 for the computation in Excel VBA. 
-The specific details will be explain in Section 1.3.
+The specific details will be explain in Section \ref{ssc:vba}.
 
 \subsection{Description of a Convertible Bond}
 
@@ -133,11 +136,12 @@ the \emph{recovery value}.
 The underlying principle remains the same
 for find the price of the convertible bond $P_\text{cb}$
 %
-\begin{equation*}
+\begin{equation}
+\label{exercise}
   P_\text{cb}(t,S(t)) = \max\Big\{P_\text{exercise}(t,S(t)), 
                         P_\text{hold}(t,S(t)) + 
                         P_\text{coupon}(t)\Big\}
-\end{equation*}
+\end{equation}
 %
 where $P_\text{coupon}(t)$ is the coupon payment,
 and $P_\text{exercise}(t,S(t))$ is the value of the conversion
@@ -151,16 +155,17 @@ $P_\text{hold}(t,S(t))$ can be computed as the
 discounted (conditional) expectation of 
 the price at the next time step
 %
-\begin{equation*}
+\begin{equation}
+\label{cond_exp}
 \begin{aligned}
   P_\text{hold}(t,S(t)) &= e^{-r\Delta t} 
     \mathbb{E}\Big[P_\text{cb}(t+\Delta t,S(t+\Delta t)) \Big| S(t)\Big] \\
   &= e^{-r\Delta t} \Big[p_\text{up} 
     P_\text{cb}(t+\Delta t,S_\text{up}(t+\Delta t)) + 
     p_\text{down} P_\text{cb}(t+\Delta t,S_\text{down}(t+\Delta t)) + 
-    p_\text{default} P_\text{recovery}]
+    p_\text{default} P_\text{recovery} \Big]
 \end{aligned}
-\end{equation*}
+\end{equation}
 %
 Here $p_\text{up}, p_\text{down}, p_\text{default}$
 are (risk-neutral) probabilities of each of the branches
@@ -175,22 +180,166 @@ where $T$ is the maturity time.
 Since the holding value of convertible bond at maturity
 is just the par value plus the final coupon, we have
 %
-\begin{equation*}
-  P_\text{cb}(T) = \max\Big\{C_r S(T), P_\text{par} + 
+\begin{equation}
+\label{terminal}
+  P_\text{cb}(T,S(T)) = \max\Big\{C_r S(T), P_\text{par} + 
                     P_\text{coupon}(T)\Big\}
-\end{equation*}
+\end{equation}
+%
+With this terminal condition, we can recursively find
+$P_\text{cb}(T-\Delta t), P_\text{cb}(T- 2 \Delta t),
+\ldots, P_\text{cb}(0)$,
+where the present value of the bond is found at $t=0$.
 
 
-\subsection{VBA Implementation}
+
+
+
+
+
+
+\subsection{VBA Implementation} \label{ssc:vba}
+
+In the VBA code, we will work with two arrays \emph{ConvertNext}
+and \emph{ConvertCurrent}, 
+corresponding to the values of $P_\text{cb}(t+\Delta t)$
+and $P_\text{cb}(t)$.
+And as we step backward in time, the two arrays will be resized as needed.
+
+We start by applying the terminal condition in Equation \eqref{terminal},
+which is implemented by the following code
+
+\begin{lstlisting}[language = VBScript, caption = VBA Code for Terminal Condition]
+
+For State = 0 To N_steps
+    stock = S0 * (u ^ State) * (d ^ (N_steps - State))
+
+    ConvertNext(State) = Application.Max(conv_ratio * stock, _
+                                        par + coupon_val)
+Next State
+
+\end{lstlisting}
+
+After which, we can then apply the conditional expectation 
+in Equation \eqref{cond_exp} 
+to assign the value of variable \emph{Convert}.
+Finally \emph{ConvertCurrent} is determined
+by applying the exercise constraint in Equation \ref{exercise}.
+
+\begin{lstlisting}[language = VBScript, caption = VBA Code for Terminal Condition]
+
+For State = 0 To Index
+    stock = S0 * (u ^ State) * (d ^ (Index - State))
+
+    Convert = Pd * ConvertNext(State) + Pu * ConvertNext(State + 1) _
+                + (1 - Exp(-lambda * dt)) * Recovery * par
+
+    ConvertCurrent(State) = Application.Max(conv_ratio * stock, _
+                            Exp(-R * dt) * Convert + coupon)
+Next State
+
+\end{lstlisting}
+
+To finish the iteration, we copy the values in 
+\emph{ConvertCurrent} to \emph{ConvertNext} 
+before the next loop.
+
+After exiting the loop,
+we will finally end up with only one node in the 
+binomial tree,
+which is the value of \emph{ConvertCurrent(1,1)}
+corresponding to $P_\text{cb}(0)$.
+
+
+
+
+
+
+
 
 \subsection{Computing Delta}
 
+The \emph{delta} of the convertible bond is 
+%
+\begin{equation*}
+  \Delta = \left. \frac{\partial P_\text{cb}(t,S(t)) }{\partial S(t)}
+  \right|_{t=0}
+\end{equation*}
+
+For this part of the problem, we consider two approaches. 
+First by centered finite difference approximation, 
+we know that
+%
+\begin{equation} \label{cfd}
+  \frac{\partial P_\text{cb}(t,S(t)) }{\partial S(t)}
+  = \frac{P_\text{cb}(t,S(t) + \epsilon) - 
+          P_\text{cb}(t,S(t)-\epsilon)}{2\epsilon}
+    + \mathcal{O}(\epsilon ^ 2)
+\end{equation}
+%
+where $\mathcal{O}(\cdot)$ refers to the order of 
+the discretization error.
+With this method, we have a 
+convergence guarantee by Taylor's Theorem;
+however, this requires two additional computations 
+of the binomial trees.
+
+Since the binomial tree is already computed once,
+we can then use the first branches to approximate the delta as well
+to save computations. Here we use the following approximation
+%
+\begin{equation} \label{bino_cfd}
+  \frac{\partial P_\text{cb}(t,S(t)) }{\partial S(t)}
+  = \frac{P_\text{cb}(t + \Delta t, u S(t) ) - 
+        P_\text{cb}(t + \Delta t, d S(t)-\epsilon)}{
+        (u-d)S(t)}
+    + \mathcal{O}\left(\Delta t + [(u-d)S(t)]^2\right)
+\end{equation}
+%
+where $u,d$ are the returns of the up and down branches.
+
+There are two issues with this approximation.
+Firstly the error is capped by the discretization size in time
+instead of a user chosen $\epsilon$.
+Although this can be resolved by choosing a very small 
+$\Delta t$ in the beginning to improve the approximation,
+it will require a different implementation.
+Secondly, this approximation ignores the third branch 
+in the event of a default.
+Therefore, we expect this estimate to be worse
+while not repeating computation.
+
+When comparing the two estimates for this problem, 
+the difference is quite small:
+%
+\begin{equation*}
+\begin{aligned}
+  \text{Finite Difference: } 1.8432617 \\
+  \text{Binomial Branches: } 1.8411774
+\end{aligned}
+\end{equation*}
+%
+where we chose $\epsilon = 10^{-6}$. 
+Therefore we can conclude that for this problem, 
+it is sufficient to approximate by 
+using the first branches in the binomial tree.
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+
+\section{Trend Following Model}
 
 
 
