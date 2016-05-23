@@ -93,9 +93,9 @@ that depends on the underlying stock price.
 Specifically, the convertible bond behaves as a regular
 bond while also providing the holder a right to convert 
 the bond into stock at a prespecified ratio.
-For this problem, our convertible bond will continue 
-to pay a semiannual coupon until maturity without 
-exercise of the conversion (and default);
+For this problem, when the convertible bond 
+is not exercised (or defaulted), 
+it will continue to pay a semiannual coupon until maturity;
 when exercised, each bond will convert into 
 a number (\emph{conversion ratio}) of stock.
 
@@ -127,19 +127,20 @@ A \emph{binomial tree} (also known as
 \emph{binomial lattice}) is a discretized model of 
 a continuous stochastic process,
 such that at any stage, the process can only evolve 
-to two potential values in the next step.
-As the size of the time steps is taken to zero,
+into two potential values in the next step.
+As the size of the time steps approaches zero (in limit),
 the discretized process will converge to 
 the continuous process (under some technical conditions).
-In practice, the convergence is more than sufficient 
-for modeling simple derivative prices.
+In practice, the approximation accuracy is more than 
+sufficient for modeling simple derivative prices.
 
-In this problem, we allow a third potential value 
+In this problem, we allow a third potential branch  
 in the event of a default, where the stock price 
 will become zero, and the bond price will be equal to 
 the \emph{recovery value}.
-The underlying principle remains the same
-for find the price of the convertible bond $P_\text{cb}$
+Due to the exercise right,
+the price of the convertible bond $P_\text{cb}$ 
+always follow
 %
 \begin{equation}
 \label{exercise}
@@ -159,7 +160,7 @@ at conversion rate $C_r$
 %
 $P_\text{hold}(t,S(t))$ can be computed as the 
 discounted (conditional) expectation of 
-the price at the next time step
+the price at the next time step $t+\Delta t$
 %
 \begin{equation}
 \label{cond_exp}
@@ -200,16 +201,17 @@ the up and down branches of the binomial tree of the stock.
     \draw[->] (tree-3-1) -- (tree-4-2) node [midway,below] {$p_\text{down}$};
     \draw[->] (tree-3-1) -- (tree-6-2) node [midway,below] {$p_\text{default}$};
 \end{tikzpicture}
-\caption{One step binomial tree for to find the value of 
+\caption{One step binomial tree for to find the value for
   holding the convertible bond,
   corresponding to Equation \eqref{cond_exp}.}
 \end{figure}
 
 
-Observe that $P_\text{cb}(t,S(t))$ is can be found recursively
+Observe that $P_\text{cb}(t,S(t))$ can be found recursively
 from the values of $P_\text{cb}(t+\Delta t,S(t+\Delta t))$.
 Therefore, by determining the values of $P_{cb}(T)$ 
-where $T$ is the maturity time.
+where $T$ is the maturity time,
+we can find the previous values.
 Since the holding value of convertible bond at maturity
 is just the par value plus the final coupon, we have
 %
@@ -255,9 +257,9 @@ Next State
 
 After which, we can then apply the conditional expectation 
 in Equation \eqref{cond_exp} 
-to assign the value of variable \emph{Convert}.
+to assign the value of variable \emph{Convert} ($P_\text{hold}$).
 Finally \emph{ConvertCurrent} is determined
-by applying the exercise constraint in Equation \ref{exercise}.
+by applying the exercise constraint in Equation \eqref{exercise}.
 
 \begin{lstlisting}[language = VBScript, caption = VBA Code for Terminal Condition]
 
@@ -277,11 +279,11 @@ To finish the iteration, we copy the values in
 \emph{ConvertCurrent} to \emph{ConvertNext} 
 before the next loop.
 
-After exiting the loop,
-we will finally end up with only one node in the 
+After we finally step back to $t=0$,
+we will end up with only one node in the 
 binomial tree,
 which is the value of \emph{ConvertCurrent(1,1)}
-corresponding to $P_\text{cb}(0)$.
+corresponding to $P_\text{cb}(0,S(0))$.
 
 
 
@@ -312,14 +314,13 @@ we know that
 %
 where $\mathcal{O}(\cdot)$ refers to the order of 
 the discretization error.
-With this method, we have a 
-convergence guarantee by Taylor's Theorem;
-however, this requires two additional computations 
+However, this requires two additional computations 
 of the binomial trees.
 
-Since the binomial tree is already computed once,
-we can then use the first branches to approximate the delta as well
-to save computations. Here we use the following approximation
+Alternatively, we can use the first branches 
+in the already computed binomial tree
+to approximate the delta. 
+Here we use the following approximation
 %
 \begin{equation} \label{bino_cfd}
   \frac{\partial P_\text{cb}(t,S(t)) }{\partial S(t)}
@@ -375,11 +376,11 @@ using the first branches in the binomial tree.
 \section{Trend Following Model}
 
 This part of the report investigates the trend following models.
-The script file that drives combines all the functions is in
+The script file that executes all the functions is in
 \emph{trend.m}, while all the other \emph{.m} defines 
 the helper functions as required.
 Note here \emph{helper.m} implements a placeholder class
-such that all the extra helper functions can be 
+such that all the extra (often small) helper functions can be 
 combined in one \emph{.m} file.
 
 \vspace{5mm}
@@ -396,23 +397,22 @@ combined in one \emph{.m} file.
     (which has a maturity of less than 5 years).
   \item When computing the returns of each CDS series,
     it is assumed that \emph{cv01(s)} can be \emph{extrapolated} 
-    when the spread is greater than 5000,
+    when the spread is greater than 5000 basis points,
     as the CDS series 59 does at one point reach a 
-    spread of greater than 10000.
+    spread of greater than 10000 basis points.
   \item When implementing the trading rule,
     it is assumed that ``sell protection 1 million CDS notional'' 
     refers to taking a short position (long risk) in the CDS, 
     instead of adding an additional 1 million short position 
     into the portfolio. 
-    Otherwise, this will potentially lead to 
-    trading every CDS on every day.
+    Otherwise, this will lead to a trade for every CDS on every day.
 \end{itemize}
 
 \subsection{The Basic Model and Summary Statistics}
 
 Here we look at several summary statistics
 of the basic strategy.
-Return is calculated as profit in dollars as a percent of 
+Return is calculated by profit in dollars as a percent of 
 notional value (\$ 1 million), 
 assuming we do not re-invest the profit,
 which results in the cumulative profit 
@@ -440,7 +440,7 @@ portfolio returns.
   Kurtosis & 14.4875 \\
   \hline  
 \end{tabular}
-\caption{Summary Statistics of the basic strategy.}
+\caption{Summary statistics of the basic strategy.}
 \label{tab:basic_summary}
 \end{table}
 
@@ -451,27 +451,38 @@ even when compared to a t-distribution with 5 degrees of freedom
 (kurtosis of 9),
 indicating a very heavy tail.
 
+
+
+
+
+
+
+
+
+
+
 \subsection{Number of Portfolio Components}
 
 The most basic model in the previous part 
 used all 343 CDS series to 
 compute the return, when it is potentially unnecessary.
-While clearly diversifying can reduce volatility 
-of the portfolio, which improves the Sharpe ratio,
+While diversifying can reduce volatility 
+of the portfolio, hence improving the Sharpe ratio,
 there should be a point at which the improvement 
-will begin diminishing.
-We can investigate the performance of portfolio 
-of different sizes and seek an approximate 
+begins to diminish.
+We can investigate the performance of portfolios 
+at different sizes and seek an approximate 
 optimal size.
 Since we do not have external information to 
 select the best CDS series,
-we can look at random samples from the 343 series 
-and compute their return statistics.
+we will look at random samples from the 343 series 
+and compute their summary statistics.
 
-Specifically we randomly choose $N_\text{sample}$ out of 
-$N = 343$, a total of 50 times,
-and compute the summary statistics for all 50 scenarios.
-We can use the box plot to observe the change in 
+Specifically we randomly choose $N_\text{sample}$ 
+CDS series out of $N = 343$, 
+for a total of 50 experiments,
+and compute the summary statistics for all 50 cases.
+We can then use the box plot to observe the change in 
 distributions for the annualized return and Sharpe ratio
 as we vary the value of $N_\text{sample}$.
 
@@ -481,7 +492,7 @@ as we vary the value of $N_\text{sample}$.
 \end{center}
 \centering
 \caption{\label{fg:boxplot_sharpe}
-The box plot of Sharpe ratio for sampled portfolio
+The box plot of Sharpe ratio for sampled portfolios
 over different sample sizes.
 }
 \end{figure}
@@ -492,7 +503,7 @@ over different sample sizes.
 \end{center}
 \centering
 \caption{\label{fg:boxplot_return}
-The box plot of annualized return for sampled portfolio
+The box plot of annualized return for sampled portfolios
 over different sample sizes.
 }
 \end{figure}
@@ -503,6 +514,17 @@ after reaching a sample size of 50.
 Therefore, we can conclude that it is unnecessary 
 to trade all 343 CDS series, 
 instead 50-100 components will be able to reach similar results.
+
+
+
+
+
+
+
+
+
+
+
 
 \subsection{Missing Assumptions and Transaction Cost}
 
@@ -520,8 +542,8 @@ directly proportional to the notional value
 of the trade, 
 which implies that each time a portfolio 
 position flips from long \$1 million to short 
-\$1 million, we have traded \$2 million 
-of notional value.
+\$1 million, we will pay the transaction cost 
+for trading \$2 million of notional value.
 After several guesses, it is easily found that 
 the break-even transaction cost is approximately
 5.41 basis points.
@@ -540,7 +562,7 @@ We can look at the summary statistics again:
   Kurtosis & 14.1028 \\
   \hline  
 \end{tabular}
-\caption{Summary Statistics of the basic strategy
+\caption{Summary statistics of the basic strategy
   with transaction cost of 5.41 basis points.}
 \label{tab:summary2}
 \end{table}
@@ -550,10 +572,18 @@ is very small and unrealistic.
 Therefore the strategy, in its current state,
 is not very attractive.
 
+
+
+
+
+
+
+
+
 \subsection{Strategy's Potential}
 
 If 5.41 basis points of transaction cost
-is enough to break even an annualized returns of 2.87\%, 
+is enough to break even an annualized return of 2.87\%, 
 clearly direct application of the strategy 
 induces a high trading volume.
 Perhaps some of the trading activity is unnecessary.
@@ -573,8 +603,8 @@ in the matrix, i.e. a trade.
 }
 \end{figure}
 
-Here we observe Figure \ref{fg:spy_volume} 
-that the strategy tend to 
+From Figure \ref{fg:spy_volume}, 
+we observe that the strategy tends to 
 frequently reverse its position on a single CDS series,
 as often as 4 days in a row.
 This type of trading is due to the moving average 
@@ -588,6 +618,17 @@ Additionally, the choice of
 using a 10-day moving average is arbitrary.
 This length of moving average 
 can be optimized for better results.
+
+
+
+
+
+
+
+
+
+
+
 
 \subsection{Optimized Strategy}
 
@@ -621,15 +662,14 @@ an optimization problem over
 the parameters $\{T, \epsilon_\text{tol}\}$,
 with the objective to maximize some combination 
 of returns and Sharpe ratio.
-Since the choice of $T$ has very little impact 
-over small changes, and minimization over 
-one variable is a much simpler problem,
+Since the small change in $T$ has very little impact, 
+and minimization over one variable is a much simpler problem,
 we decide to pursue the following formulation:
 %
 \begin{equation} \label{eq:optimization}
   \epsilon_\text{tol}^*(T) = 
   \argmax_{\epsilon_\text{tol} \in [0, 0.01]}
-    100 r_\text{annual}(T,\epsilon_\text{tol}) + 
+    100\, r_\text{annual}(T,\epsilon_\text{tol}) + 
     R_\text{Sharpe}(T,\epsilon_\text{tol})
 \end{equation}
 %
@@ -711,8 +751,8 @@ in the matrix, i.e. a trade.
 \end{figure}
 
 In conclusion, we find the optimized strategy 
-can perform even under realistic transaction cost
-level at 20 basis points.
+can perform even under assumption of realistic 
+transaction costs at 20 basis points.
 The strategy at this stage is definitely 
 worth pursuing.
 
