@@ -24,12 +24,27 @@ function all_returns = calcStrategyReturns3(MA, r_t, t_cost, MA_tol, plot_volume
 	MA_sign = (MA > MA_tol) - (MA < -MA_tol);
 
 	% fill zeros with previous value
-	% 	here uses cumulative sum of non-zero indices (in binary) 
-	% 	to find the previous index
+	% 	here cumulative sum of non-zero indices (in binary) 
+	% 	finds the index of MA_sign_r, 
+	%	corresponding to the previous value.
+	%
+	% example:
+	%	if we have MA_sign = [0 -1 0 -1]
+	%	then idx = [0 1 0 1]
+	%	and MA_sign_r = [0 -1 -1]
+	%	cumsum(idx) = [0 1 1 2]
+	%	finally MA_sign_r(cumsum(idx)+1) = [0 -1 -1 -1]
+	%
 	for i = 1:ncol_s
-		idx = (MA_sign(:,i) ~= 0); % non-zero
-		MA_sign_r = [0; MA_sign(idx,i)]; % non-zero, with leading zero
-		%use cumsum to build index into MA_sign_r
+		% non-zero indices
+		idx = (MA_sign(:,i) ~= 0);
+
+		% creates a list of non-zero values, 
+		% with zero appended in the beginning
+		MA_sign_r = [0; MA_sign(idx,i)];
+
+		% fills in the non-zero values from MA_sign_r
+		% at the corresponding locations
 		MA_sign(:,i) = MA_sign_r(cumsum(idx)+1); 
 	end
 

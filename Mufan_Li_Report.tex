@@ -8,6 +8,7 @@
 \usepackage{hypernat}
 
 \usepackage{tikz}
+\usetikzlibrary{matrix}
 \usepackage{tkz-graph}
 \usepackage{listings}             % Include the listings-package
 \usepackage{algorithm2e}
@@ -147,7 +148,8 @@ for find the price of the convertible bond $P_\text{cb}$
                         P_\text{coupon}(t)\Big\}
 \end{equation}
 %
-where $P_\text{coupon}(t)$ is the coupon payment,
+where $P_\text{coupon}(t)$ is the coupon payment function
+(point masses at coupon payment dates),
 and $P_\text{exercise}(t,S(t))$ is the value of the conversion
 at conversion rate $C_r$
 %
@@ -176,6 +178,33 @@ are (risk-neutral) probabilities of each of the branches
 in the binomial tree, $r$ is the risk-free rate,
 and $S_\text{up}, S_\text{down}$ correspond to 
 the up and down branches of the binomial tree of the stock.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[>=stealth,sloped]
+    \matrix (tree) [%
+      matrix of nodes,
+      minimum size=1cm,
+      column sep=3.5cm,
+      row sep=1cm,
+    ]
+    {
+          &    \\
+          & $P_\text{cb}(t+\Delta t, S_\text{up}(t+\Delta t))$  \\
+      $P_\text{hold}(t,S(t))$  &    \\
+          & $P_\text{cb}(t+\Delta t, S_\text{down}(t+\Delta t))$  \\
+          &     \\
+          & $P_\text{recovery}$  \\
+    };
+    \draw[->] (tree-3-1) -- (tree-2-2) node [midway,above] {$p_\text{up}$};
+    \draw[->] (tree-3-1) -- (tree-4-2) node [midway,below] {$p_\text{down}$};
+    \draw[->] (tree-3-1) -- (tree-6-2) node [midway,below] {$p_\text{default}$};
+\end{tikzpicture}
+\caption{One step binomial tree for to find the value of 
+  holding the convertible bond,
+  corresponding to Equation \eqref{cond_exp}.}
+\end{figure}
+
 
 Observe that $P_\text{cb}(t,S(t))$ is can be found recursively
 from the values of $P_\text{cb}(t+\Delta t,S(t+\Delta t))$.
@@ -342,7 +371,7 @@ using the first branches in the binomial tree.
 
 
 
-
+\pagebreak
 \section{Trend Following Model}
 
 This part of the report investigates the trend following models.
