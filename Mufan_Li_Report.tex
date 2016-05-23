@@ -12,6 +12,7 @@
 \usepackage{listings}             % Include the listings-package
 \usepackage{algorithm2e}
 \usepackage{dsfont}
+\usepackage{epsfig}
 
 \newcommand{\handout}[6]{
   \noindent
@@ -49,6 +50,8 @@
 \makeatletter
 \newcommand{\xRightarrow}[2][]{\ext@arrow 0359\Rightarrowfill@{#1}{#2}}
 \makeatother
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
 
 % 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
 \topmargin 0pt
@@ -60,7 +63,8 @@
 \marginparwidth 0.5in
 \textwidth 6.5in
 
-\parindent 0in
+% \parindent 0in
+% \setlength{\parindent}{1cm} % Default is 15pt.
 \parskip 1.5ex
 %\renewcommand{\baselinestretch}{1.25}
 
@@ -341,25 +345,347 @@ using the first branches in the binomial tree.
 
 \section{Trend Following Model}
 
+This part of the report investigates the trend following models.
+The script file that drives combines all the functions is in
+\emph{trend.m}, while all the other \emph{.m} defines 
+the helper functions as required.
+Note here \emph{helper.m} implements a placeholder class
+such that all the extra helper functions can be 
+combined in one \emph{.m} file.
 
+\vspace{5mm}
+\noindent
+\textbf{Model Assumptions (Interpretation)}
 
+\begin{itemize}
+  \item When computing the CDS spread for 5 year maturity,
+    it is assumed that the CDS spread desired is 
+    the CDS contract with maturity of exactly 5 years.
+    This value is linearly interpolated between
+    the 5 year standard contract (which always has a maturity 
+    of longer than 5 years), and 4 year standard contract 
+    (which has a maturity of less than 5 years).
+  \item When computing the returns of each CDS series,
+    it is assumed that \emph{cv01(s)} can be \emph{extrapolated} 
+    when the spread is greater than 5000,
+    as the CDS series 59 does at one point reach a 
+    spread of greater than 10000.
+  \item When implementing the trading rule,
+    it is assumed that ``sell protection 1 million CDS notional'' 
+    refers to taking a short position (long risk) in the CDS, 
+    instead of adding an additional 1 million short position 
+    into the portfolio. 
+    Otherwise, this will potentially lead to 
+    trading every CDS on every day.
+\end{itemize}
 
+\subsection{The Basic Model and Summary Statistics}
 
+Here we look at several summary statistics
+of the basic strategy.
+Return is calculated as profit in dollars as a percent of 
+notional value (\$ 1 million), 
+assuming we do not re-invest the profit,
+which results in the cumulative profit 
+computed as a sum of dollar profits 
+instead of a cumulative product of returns.
+This assumption is used since returns in CDS 
+are in the form of a cash flow,
+however it will have minimal influence on the analysis.
+The Sharpe ratio calculation is computed based on
+daily returns annualized and using zero risk-free rate.
+The kurtosis refers to the non-excess kurtosis,
+and both skewness kurtosis are computed for daily 
+portfolio returns.
 
+\begin{table}[h]
+\centering
+\begin{tabular}{ | l | r | }
+  \hline      
+  Statistic & Value \\
+  \hline
+  Cumulative Return & 7.01\% \\
+  Annualized Return & 2.87\% \\
+  Sharpe Ratio & 4.0256 \\
+  Skewness & -0.2167 \\
+  Kurtosis & 14.4875 \\
+  \hline  
+\end{tabular}
+\caption{Summary Statistics of the basic strategy.}
+\label{tab:basic_summary}
+\end{table}
 
+Based on these statistics alone, especially the Sharpe ratio, 
+this strategy does look attractive. 
+However, the kurtosis is relatively large
+even when compared to a t-distribution with 5 degrees of freedom
+(kurtosis of 9),
+indicating a very heavy tail.
 
+\subsection{Number of Portfolio Components}
 
+The most basic model in the previous part 
+used all 343 CDS series to 
+compute the return, when it is potentially unnecessary.
+While clearly diversifying can reduce volatility 
+of the portfolio, which improves the Sharpe ratio,
+there should be a point at which the improvement 
+will begin diminishing.
+We can investigate the performance of portfolio 
+of different sizes and seek an approximate 
+optimal size.
+Since we do not have external information to 
+select the best CDS series,
+we can look at random samples from the 343 series 
+and compute their return statistics.
 
+Specifically we randomly choose $N_\text{sample}$ out of 
+$N = 343$, a total of 50 times,
+and compute the summary statistics for all 50 scenarios.
+We can use the box plot to observe the change in 
+distributions for the annualized return and Sharpe ratio
+as we vary the value of $N_\text{sample}$.
 
+\begin{figure}[h]
+\begin{center}
+\epsfig{figure=boxplot_sharpe.eps, width=.51\textwidth}
+\end{center}
+\centering
+\caption{\label{fg:boxplot_sharpe}
+The box plot of Sharpe ratio for sampled portfolio
+over different sample sizes.
+}
+\end{figure}
 
+\begin{figure}[h]
+\begin{center}
+\epsfig{figure=boxplot_return.eps, width=.51\textwidth}
+\end{center}
+\centering
+\caption{\label{fg:boxplot_return}
+The box plot of annualized return for sampled portfolio
+over different sample sizes.
+}
+\end{figure}
 
+From the box plots, we can observe the improvement 
+in average Sharpe ratio begins to diminish 
+after reaching a sample size of 50.
+Therefore, we can conclude that it is unnecessary 
+to trade all 343 CDS series, 
+instead 50-100 components will be able to reach similar results.
 
+\subsection{Missing Assumptions and Transaction Cost}
 
+A key difference between back-testing and 
+actual trading is the execution cost
+due to available liquidity, trade size, 
+and broker commission.
+Since there is no additional information on 
+individual CDS series and date,
+it is appropriate to assume a uniform 
+transaction cost on each trade.
 
+Here we assume the transaction cost is 
+directly proportional to the notional value 
+of the trade, 
+which implies that each time a portfolio 
+position flips from long \$1 million to short 
+\$1 million, we have traded \$2 million 
+of notional value.
+After several guesses, it is easily found that 
+the break-even transaction cost is approximately
+5.41 basis points.
+We can look at the summary statistics again:
 
+\begin{table}[h]
+\centering
+\begin{tabular}{ | l | r | }
+  \hline      
+  Statistic & Value \\
+  \hline
+  Cumulative Return & 0.00\% \\
+  Annualized Return & 0.00\% \\
+  Sharpe Ratio & -0.0010 \\
+  Skewness & -0.1464 \\
+  Kurtosis & 14.1028 \\
+  \hline  
+\end{tabular}
+\caption{Summary Statistics of the basic strategy
+  with transaction cost of 5.41 basis points.}
+\label{tab:summary2}
+\end{table}
 
+Clearly, a transaction cost of 5.41 basis points 
+is very small and unrealistic.
+Therefore the strategy, in its current state,
+is not very attractive.
 
+\subsection{Strategy's Potential}
 
+If 5.41 basis points of transaction cost
+is enough to break even an annualized returns of 2.87\%, 
+clearly direct application of the strategy 
+induces a high trading volume.
+Perhaps some of the trading activity is unnecessary.
+We can get a rough idea of trading activity 
+by simply looking at the sparsity of 
+the matrix of trading volume.
+
+\begin{figure}[h!]
+\begin{center}
+\epsfig{figure=spy_volume.eps, width=.51\textwidth}
+\end{center}
+\centering
+\caption{\label{fg:spy_volume}
+A (sample) sparsity plot of the trading volume matrix,
+where each point indicates a non-zero entry
+in the matrix, i.e. a trade.
+}
+\end{figure}
+
+Here we observe Figure \ref{fg:spy_volume} 
+that the strategy tend to 
+frequently reverse its position on a single CDS series,
+as often as 4 days in a row.
+This type of trading is due to the moving average 
+oscillating between positive and negative values, 
+causing the strategy to trade frequently.
+Therefore, the strategy has potential to 
+significantly reduce its transaction costs
+by eliminating this type of trades.
+
+Additionally, the choice of
+using a 10-day moving average is arbitrary.
+This length of moving average 
+can be optimized for better results.
+
+\subsection{Optimized Strategy}
+
+As mentioned in the previous section, 
+the strategy can be improved by both reducing 
+unnecessary trading volume, 
+and by optimizing the length of simple moving average.
+
+Here we investigate a simple modification to 
+the trading rule by introducing a tolerance to 
+the moving average,
+where we will continue to hold the current position 
+until the moving average has crossed to 
+the opposite sign by at least some 
+$\epsilon_\text{tol} > 0$.
+More formally
+%
+\begin{equation*}
+  \text{Position on CDS}_i =
+  \begin{cases}
+    -1 & \text{ if MA}_t(S_i,T) > \epsilon_\text{tol} \\
+    +1 & \text{ if MA}_t(S_i,T) < -\epsilon_\text{tol} \\
+    \text{Hold previous position} & \text{ otherwise}
+  \end{cases}
+\end{equation*}
+%
+where $T$ is the length of the moving average.
+
+Here we can formulate the strategy choice as 
+an optimization problem over 
+the parameters $\{T, \epsilon_\text{tol}\}$,
+with the objective to maximize some combination 
+of returns and Sharpe ratio.
+Since the choice of $T$ has very little impact 
+over small changes, and minimization over 
+one variable is a much simpler problem,
+we decide to pursue the following formulation:
+%
+\begin{equation} \label{eq:optimization}
+  \epsilon_\text{tol}^*(T) = 
+  \argmax_{\epsilon_\text{tol} \in [0, 0.01]}
+    100 r_\text{annual}(T,\epsilon_\text{tol}) + 
+    R_\text{Sharpe}(T,\epsilon_\text{tol})
+\end{equation}
+%
+where the optimization problem will be solved 
+over several choices of $T$.
+Here $r_\text{annual}$ is the annual return,
+$R_\text{Sharpe}$ is the annualized Sharpe ratio,
+and the factor $100$ is chosen so the two values 
+are on the same order of magnitude.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ | l | r | r | r | r | r | r | r | r | }
+  \hline      
+  MA Length $(T)$ & 3 & 5 & 7 & 10 & 15 & 20 & 30 & 50 \\
+  Tolerance $(\epsilon_\text{tol})$ &
+    0.0024 & 0.0040 & 0.0061 & 0.0043 & 0.0068 & 0.0062 & 0.0034 & 0.0038 \\
+  \hline
+  Cumulative Return & 
+    1.47\% & 1.14\% & 0.19\% & 0.54\% & -0.01\% & 0.06\% & -0.14\% & -0.16\% \\
+  Annualized Return & 
+    \textbf{1.21\%} & 0.93\% & 0.15\% & 0.44\% & -0.01\% & 0.05\% & 
+    -0.12\% & -0.13\% \\
+  Sharpe Ratio & 
+    2.1592 & \textbf{2.3534} & 0.5359 & 1.3905 & -0.0378 & 0.2265 & 
+    -0.4462 & -0.7317 \\
+  Skewness & 
+    0.4409 & 1.2342 & 0.4260 & 0.7464 & -0.3771 & -0.2468 & -0.4187 & -0.8695 \\
+  Kurtosis & 
+    7.1357 & 9.4457 & 6.6211 & 6.8286 & 7.3626 & 8.0430 & 5.8006 & 7.4253 \\
+  \hline  
+\end{tabular}
+\caption{Out-of-sample summary statistics of the optimized strategy
+  with transaction cost of 20 basis points,
+  and over several different choices of moving average length.}
+\label{tab:opt_summary}
+\end{table}
+
+The implementation of this optimization is done 
+through MATLAB function \emph{fminbnd},
+assuming a transaction cost of 20 basis points.
+Here we also separate the data into 
+in-sample for optimization,
+and out-of-sample for testing.
+In this experiment, we choose the first half of 
+CDS series (1-172),
+and the first half of the time period as in-sample,
+and the second half of CDS series (173-343)
+and the second half of the time period as out-of-sample.
+This choice results in no overlap of both 
+CDS series and time period between 
+the in-sample and out-of-sample data.
+The code for this section can be found in \emph{improveStrategy.m}.
+
+Observe the optimization and summary results 
+in Table \ref{tab:opt_summary},
+we see that even with a transaction cost of 20 basis points,
+we can still reach a Sharpe ratio of 2.35 
+with an optimized strategy.
+Interestingly, we also find the strategy 
+improved in terms of kurtosis as well.
+Similarly, we can observe the sparsity plot of 
+the volume matrix with 3-day moving average.
+Even with a choice of small $T$, 
+we can have restrict the trading activity to 
+less than previously in Figure \ref{fg:spy_volume}.
+
+\begin{figure}[h]
+\begin{center}
+\epsfig{figure=spy_volume_opt.eps, width=.51\textwidth}
+\end{center}
+\centering
+\caption{\label{fg:spy_volume_opt}
+A (sample) sparsity plot of the trading volume matrix
+for the optimized strategy with 3-day moving average,
+where each point indicates a non-zero entry
+in the matrix, i.e. a trade.
+}
+\end{figure}
+
+In conclusion, we find the optimized strategy 
+can perform even under realistic transaction cost
+level at 20 basis points.
+The strategy at this stage is definitely 
+worth pursuing.
 
 
 
